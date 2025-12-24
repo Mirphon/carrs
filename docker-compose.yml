@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  # 1. Ваш Python проект
+  app:
+    build: .
+    ports:
+      - "80:8000" # Пробрасываем порт (например, 8000 внутри -> 80 снаружи)
+    environment:
+      - DB_HOST=db
+      - DB_USER=root
+      - DB_PASSWORD=your_secure_password
+      - DB_NAME=my_python_db
+    depends_on:
+      - db
+
+  # 2. База данных
+  db:
+    image: mariadb:latest
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: qwerty123
+      MYSQL_DATABASE: cars
+    volumes:
+      - db_data:/var/lib/mysql
+
+  # 3. phpMyAdmin
+  phpmyadmin:
+    image: phpmyadmin:latest
+    restart: always
+    ports:
+      - "8081:80"
+    environment:
+      PMA_HOST: db
+    depends_on:
+      - db
+
+volumes:
+  db_data:

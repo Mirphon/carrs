@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html class="light" lang="ru">
+<head>
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>Sellcar - Список автомобилей</title>
+    <link href="/static/style.css" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Work+Sans:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet"/>
+</head>
+<body>
+    <div class="page-container">
+        <header class="header">
+            <div class="header-container">
+                <div class="header-content">
+                    <div class="logo-section">
+                        <div class="logo">
+                            <span class="material-symbols-outlined logo-icon">directions_car</span>
+                            <h1 class="logo-text">Sellcar</h1>
+                        </div>
+                    </div>
+                    <div class="search-section">
+                        <div class="search-container">
+                            <label class="search-label">
+                                <span class="material-symbols-outlined search-icon">search</span>
+                                <input class="search-input" placeholder="Поиск по марке, модели или ключевому слову" type="text"/>
+                                <button class="search-filter-button">
+                                    <span class="material-symbols-outlined">tune</span>
+                                </button>
+                            </label>
+                        </div>
+                    </div>
+                    <div class="user-section">
+                        <div class="user-dropdown">
+                            <button class="user-button">
+                                <img class="user-avatar" data-alt="User avatar" src="/static/default-avatar.png" onerror="this.src='https://via.placeholder.com/40'"/>
+                                <span class="user-name"></span>
+                                <span class="material-symbols-outlined dropdown-icon">expand_more</span>
+                            </button>
+                            <div class="dropdown-menu">
+                                <div class="dropdown-content" aria-labelledby="options-menu" aria-orientation="vertical" role="menu">
+                                    <a class="dropdown-item" href="/profile.html" role="menuitem">Мой профиль</a>
+                                    <a class="dropdown-item" href="/sales.html" role="menuitem">Мои продажи</a>
+                                    <a class="dropdown-item" href="/favorites.html" role="menuitem">Избранное</a>
+                                    <a class="dropdown-item logout-item" href="#" role="menuitem">Выход</a>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+        <main class="main-content">
+            <div class="content-container">
+                <div class="cars-grid">
+                </div>
+            </div>
+        </main>
+        <footer class="footer">
+            <div class="footer-content">
+                <div class="footer-links">
+                    <a href="#" class="footer-link">Terms</a>
+                    <span class="footer-separator">|</span>
+                    <a href="#" class="footer-link">Privacy</a>
+                    <span class="footer-separator">|</span>
+                    <a href="#" class="footer-link">About</a>
+                </div>
+                <div class="footer-copyright">
+                    © 2025 Sellcar. Все права защищены.
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <script>
+        // Храним ID лайкнутых машин, чтобы красить сердечки
+        let userFavoritesIds = new Set();
+
+        // Главная функция запуска
+        async function initPage() {
+            await loadUserInfo();     // Загружаем юзера (из common.js)
+            await loadFavoritesIds(); // Узнаем, что лайкнуто
+            await loadCars();         // Грузим и рисуем машины
+        }
+
+        // Получаем список ID избранного (чтобы знать, где ставить красное сердечко)
+        async function loadFavoritesIds() {
+            try {
+                const response = await fetch('/api/user/favorites');
+                if (response.ok) {
+                    const favs = await response.json();
+                    // Сохраняем только ID машин в Set для быстрого поиска
+                    userFavoritesIds = new Set(favs.map(f => f.car_id));
+                }
+            } catch (e) {
+                console.log('User not logged in or error');
+            }
+        }
+
+        // Загрузка машин и генерация HTML
+        async function loadCars() {
+            try {
+                const response = await fetch('/api/cars/recommended'); 
+                const cars = await response.json();
+                
+                const grid = document.querySelector('.cars-grid');
+                grid.innerHTML = ''; // Очищаем контейнер
+                
+                cars.forEach(car => {
+                    const carCard = createCarCardHTML(car);
+                    grid.innerHTML += carCard; // Добавляем HTML карточки
+                });
+            } catch (error) {
+                console.error('Error loading cars:', error);
+            }
+        }
+
+        // Функция создания HTML одной карточки
+        function createCarCardHTML(car) {
+            // 1. Логика выбора картинки (Иконки кузовов)
+            const iconsFolder = '/static/icon/';
+            const globalDefault = '/static/icon/unknown_photo.png';
+            const bodyTypeMap = {
+                'внедорожник': 'off-road_photo.png',
+                'седан': 'sedan_photo.png',
+                'универсал': 'universal_photo.png',
+                'хэтчбек': 'hatchback_photo.png',
+                'купе': 'coupe_photo.png',
+                'минивэн': 'minivan_photo.png',
+                'пикап': 'pickup_photo.png',  
+                'другие': 'unknown_photo.png',
+            };
+
+            let photoUrl = globalDefault;
+
+            // А. Если есть фото в базе
+            if (car.photos && car.photos.length > 0 && car.photos[0].photo_url) {
+                photoUrl = car.photos[0].photo_url;
+            } 
+            // Б. Если нет — ищем иконку по типу кузова
+            else {
+                const typeKey = (car.bodytype || '').toLowerCase().trim();
+                if (bodyTypeMap[typeKey]) {
+                    photoUrl = iconsFolder + bodyTypeMap[typeKey];
+                }
+            }
+
+            // 2. Логика Избранного
+            const isFavorite = userFavoritesIds.has(car.car_id);
+            const favClass = isFavorite ? 'favorite-active' : '';
+            const favIcon = isFavorite ? 'favorite' : 'favorite_border';
+
+            // 3. Форматирование данных
+            const priceValue = car.price || 0;
+            const formattedPrice = priceValue.toLocaleString('ru-RU');
+            const formattedMileage = (car.mileage || 0).toLocaleString('ru-RU');
+
+            let badgeColorClass = "";
+            let badgeText = "";
+
+            // Новая логика: проверка на дорогую машину (без оценки)
+            if (priceValue > 7500000 && car.price_range == 0) {
+                badgeColorClass = "price-badge-gray"; // Создадим этот класс в CSS
+                badgeText = "Без оценки";
+            } 
+            // Если цена меньше или равна 7 500 000, используем старую логику
+            else {
+                if (car.price_range > 1) {
+                    badgeColorClass = "price-badge-orange";
+                    badgeText = "Низкая цена";
+                } else if (car.price_range < -1) {
+                    badgeColorClass = "price-badge-red";
+                    badgeText = "Высокая цена";
+                } else {
+                    badgeColorClass = "price-badge-green";
+                    badgeText = "Хорошая цена";
+                }
+            }
+
+            // 4. HTML Шаблон
+            return `
+                <a href="car-details.html?id=${car.car_id}" class="car-card">
+                    <div class="car-image-container">
+                        <div class="car-image" 
+                            data-alt="${car.brand} ${car.model}" 
+                            style='background-image: url("${photoUrl}");'>
+                        </div>
+                        <button class="favorite-button ${favClass}" 
+                                onclick="event.preventDefault(); toggleFavorite(${car.car_id}, this)">
+                            <span class="material-symbols-outlined">${favIcon}</span>
+                        </button>
+                    </div>
+                    <div class="car-info">
+                        <h3 class="car-title">${car.brand} ${car.model}</h3>
+                        <div class="price-section">
+                            <p class="car-price">${formattedPrice} ₽</p>
+                            <div class="price-badge ${badgeColorClass}">
+                                <p class="badge-text">${badgeText}</p>
+                            </div>
+                        </div>
+                        <p class="car-details">
+                            Год: ${car.production_date}, Пробег: ${formattedMileage} км, Двигатель: ${car.engine_displacement}L ${car.fuel_type || ''}
+                        </p>
+                    </div>
+                </a>
+            `;
+        }
+
+        // Логика лайка (Добавление/Удаление)
+        async function toggleFavorite(carId, button) {
+            const icon = button.querySelector('.material-symbols-outlined');
+            
+            try {
+                // Если уже лайкнуто (класс active) - удаляем
+                if (button.classList.contains('favorite-active')) {
+                    const res = await fetch(`/api/favorites/${carId}`, { method: 'DELETE' });
+                    if (res.ok) {
+                        button.classList.remove('favorite-active');
+                        icon.textContent = 'favorite_border';
+                        userFavoritesIds.delete(carId);
+                    }
+                } else {
+                    // Если не лайкнуто - добавляем
+                    const res = await fetch(`/api/favorites/${carId}`, { method: 'POST' });
+                    if (res.ok) {
+                        button.classList.add('favorite-active');
+                        icon.textContent = 'favorite';
+                        userFavoritesIds.add(carId);
+                    } else if (res.status === 401) {
+                        // Если не авторизован - на логин
+                        window.location.href = '/login';
+                    }
+                }
+            } catch (error) {
+                console.error('Error toggling favorite:', error);
+            }
+        }
+
+        // Запускаем всё при загрузке
+        document.addEventListener('DOMContentLoaded', initPage);
+    </script>
+    <script src="/static/common.js"></script>
+</body>
+</html>
