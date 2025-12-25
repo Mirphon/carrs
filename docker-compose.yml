@@ -5,16 +5,16 @@ services:
   app:
     build: .
     ports:
-      - "80:8000" # Пробрасываем порт (например, 8000 внутри -> 80 снаружи)
+      - "80:8000"
+    volumes:
+      # Пробрасываем папку с базой данных, чтобы она сохранялась на сервере
+      - ./database:/app/data 
     environment:
-      - DB_HOST=db
-      - DB_USER=root
-      - DB_PASSWORD=your_secure_password
-      - DB_NAME=my_python_db
+      - DB_PATH=/app/data/my_database.db # Путь к файлу внутри контейнера
     depends_on:
       - db
 
-  # 2. База данных
+  # 2. База данных (MariaDB остается, если она вам нужна параллельно)
   db:
     image: mariadb:latest
     restart: always
@@ -24,16 +24,12 @@ services:
     volumes:
       - db_data:/var/lib/mysql
 
-  # 3. phpMyAdmin
-  phpmyadmin:
-    image: phpmyadmin:latest
+  # 3. Adminer (Заменяет phpMyAdmin)
+  adminer:
+    image: adminer:latest
     restart: always
     ports:
-      - "8081:80"
-    environment:
-      PMA_HOST: db
-    depends_on:
-      - db
-
-volumes:
-  db_data:
+      - "8081:8080"
+    volumes:
+      # ВАЖНО: подключаем ту же папку с файлом .db, что и у приложения 'app'
+      - ./database:/var/www/html/db_files:ro
